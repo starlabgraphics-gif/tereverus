@@ -73,7 +73,7 @@ for (const clip of clips) {
   const res = await pool.query(
     `INSERT INTO videos (id, title, kind, duration, size_bytes, src_path, thumb_path, mime_type)
      VALUES ($1, $2, $3, $4, $5, $6, $7, 'video/mp4') RETURNING id`,
-    [id, clip.name, clip.kind, clip.seconds, size, `/uploads/${file}`, `/uploads/${thumb}`],
+    [id, clip.name, clip.kind, clip.seconds, size, `/api/media/${file}`, `/api/media/${thumb}`],
   );
   rows.push({ videoId: res.rows[0].id, kind: clip.kind });
 }

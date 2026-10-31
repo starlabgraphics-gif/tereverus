@@ -1,10 +1,10 @@
 import { NextResponse } from "next/server";
-import { promises as fs } from "node:fs";
-import path from "node:path";
 import { eq } from "drizzle-orm";
 import { db } from "@/db";
 import { videos } from "@/db/schema";
 import { isAuthedAdmin } from "@/lib/auth";
+import { deleteMedia, mediaNameFromPath } from "@/lib/storage";
+import { ensureSchema } from "@/lib/dbReady";
 
 export const dynamic = "force-dynamic";
 
@@ -14,6 +14,7 @@ export async function PUT(req: Request, ctx: Ctx) {
   if (!(await isAuthedAdmin())) {
     return NextResponse.json({ error: "Unauthorized." }, { status: 401 });
   }
+  await ensureSchema();
   const { id } = await ctx.params;
   let body: { title?: string; kind?: string };
   try {
@@ -48,6 +49,7 @@ export async function DELETE(_req: Request, ctx: Ctx) {
   if (!(await isAuthedAdmin())) {
     return NextResponse.json({ error: "Unauthorized." }, { status: 401 });
   }
+  await ensureSchema();
   const { id } = await ctx.params;
 
   const found = await db.select().from(videos).where(eq(videos.id, id)).limit(1);
@@ -58,12 +60,8 @@ export async function DELETE(_req: Request, ctx: Ctx) {
   await db.delete(videos).where(eq(videos.id, id)); // cascade removes playlist entries
 
   for (const p of [found[0].srcPath, found[0].thumbPath]) {
-    if (!p) continue;
-    try {
-      await fs.unlink(path.join(process.cwd(), p));
-    } catch {
-      /* already gone */
-    }
+    const name = mediaNameFromPath(p);
+    if (name) await deleteMedia(name).catch(() => {});
   }
   return NextResponse.json({ ok: true });
 }

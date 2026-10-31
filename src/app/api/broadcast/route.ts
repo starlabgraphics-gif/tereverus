@@ -7,16 +7,19 @@ import {
   reconcileCurrent,
   setBroadcast,
 } from "@/lib/broadcast";
+import { ensureSchema } from "@/lib/dbReady";
 
 export const dynamic = "force-dynamic";
 
 export async function GET() {
+  await ensureSchema();
   await reconcileCurrent();
   const state = await getPublicState();
   return NextResponse.json(state);
 }
 
 export async function POST(req: Request) {
+  await ensureSchema();
   let body: {
     action?: string;
     entryId?: string;

@@ -1,24 +1,30 @@
-import { drizzle } from "drizzle-orm/node-postgres";
-import { Pool } from "pg";
+import { drizzle, type NodePgDatabase } from "drizzle-orm/node-postgres";
+import * as schema from "./schema";
+import { getPool } from "./pool";
 
-const databaseUrl = process.env.DATABASE_URL;
-
-if (!databaseUrl) {
-  throw new Error("DATABASE_URL is required");
-}
+export type Database = NodePgDatabase<typeof schema>;
 
 const globalForDb = globalThis as typeof globalThis & {
-  __arenaNextJsPostgresqlPool?: Pool;
+  __tvtvDb?: Database;
 };
 
-export const pool =
-  globalForDb.__arenaNextJsPostgresqlPool ??
-  new Pool({
-    connectionString: databaseUrl,
-  });
-
-if (process.env.NODE_ENV !== "production") {
-  globalForDb.__arenaNextJsPostgresqlPool = pool;
+function getDb(): Database {
+  if (!globalForDb.__tvtvDb) {
+    globalForDb.__tvtvDb = drizzle(getPool(), { schema });
+  }
+  return globalForDb.__tvtvDb;
 }
 
-export const db = drizzle(pool);
+/**
+ * Lazy proxy — the connection is created on the first real query, so
+ * importing this module during a static build (page data collection)
+ * never requires DATABASE_URL to be present.
+ */
+export const db = new Proxy({} as Database, {
+  get(_target, prop) {
+    const value = (getDb() as unknown as Record<PropertyKey, unknown>)[prop];
+    return typeof value === "function"
+      ? (value as (...args: unknown[]) => unknown).bind(getDb())
+      : value;
+  },
+});

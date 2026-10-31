@@ -1,20 +1,19 @@
 import { NextResponse } from "next/server";
-import { promises as fs } from "node:fs";
-import path from "node:path";
-import crypto from "node:crypto";
+import { randomUUID } from "node:crypto";
 import { db } from "@/db";
 import { videos } from "@/db/schema";
 import { isAuthedAdmin } from "@/lib/auth";
+import { saveMedia } from "@/lib/storage";
+import { ensureSchema } from "@/lib/dbReady";
 import { asc } from "drizzle-orm";
 
 export const dynamic = "force-dynamic";
-export const maxDuration = 300;
 
-const UPLOAD_DIR = path.join(process.cwd(), "public", "uploads");
 const ALLOWED_EXT = new Set([".mp4", ".webm", ".m4v", ".ogv"]);
 const MAX_BYTES = 2 * 1024 * 1024 * 1024; // 2 GB guard
 
 export async function GET() {
+  await ensureSchema();
   const rows = await db.select().from(videos).orderBy(asc(videos.createdAt));
   return NextResponse.json({
     videos: rows.map((v) => ({
@@ -35,6 +34,7 @@ export async function POST(req: Request) {
   if (!(await isAuthedAdmin())) {
     return NextResponse.json({ error: "Unauthorized." }, { status: 401 });
   }
+  await ensureSchema();
 
   let form: FormData;
   try {
@@ -54,7 +54,7 @@ export async function POST(req: Request) {
   }
 
   const originalName = (file as File).name || "video.mp4";
-  const ext = path.extname(originalName).toLowerCase();
+  const ext = originalName.slice(originalName.lastIndexOf(".")).toLowerCase();
   if (!ALLOWED_EXT.has(ext)) {
     return NextResponse.json(
       { error: "Unsupported format. Upload MP4 or WebM files." },
@@ -67,31 +67,23 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "File is too large." }, { status: 413 });
   }
 
-  try {
-    await fs.mkdir(UPLOAD_DIR, { recursive: true });
-  } catch {
-    return NextResponse.json({ error: "Could not prepare storage." }, { status: 500 });
-  }
-
-  const id = crypto.randomUUID();
+  const id = randomUUID();
   const fileName = `${id}${ext}`;
-  await fs.writeFile(path.join(UPLOAD_DIR, fileName), bytes);
+  const thumbName = `${id}.jpg`;
 
-  let thumbPath: string | null = null;
-  if (thumbDataUrl.startsWith("data:image/jpeg;base64,")) {
-    try {
-      const thumbName = `${id}.jpg`;
-      await fs.writeFile(
-        path.join(UPLOAD_DIR, thumbName),
-        Buffer.from(thumbDataUrl.split(",")[1], "base64"),
-      );
-      thumbPath = `/uploads/${thumbName}`;
-    } catch {
-      thumbPath = null;
+  try {
+    await saveMedia(fileName, bytes);
+    if (thumbDataUrl.startsWith("data:image/jpeg;base64,")) {
+      await saveMedia(thumbName, Buffer.from(thumbDataUrl.split(",")[1], "base64"));
     }
+  } catch {
+    return NextResponse.json(
+      { error: "Could not store the file. Is media storage configured?" },
+      { status: 500 },
+    );
   }
 
-  const finalTitle = title || path.basename(originalName, ext);
+  const finalTitle = title || originalName.replace(/\.[^.]+$/, "");
   const inserted = await db
     .insert(videos)
     .values({
@@ -100,8 +92,10 @@ export async function POST(req: Request) {
       kind,
       duration: String(duration),
       sizeBytes: bytes.byteLength,
-      srcPath: `/uploads/${fileName}`,
-      thumbPath,
+      srcPath: `/api/media/${fileName}`,
+      thumbPath: thumbDataUrl.startsWith("data:image/jpeg;base64,")
+        ? `/api/media/${thumbName}`
+        : null,
       mimeType: (file as File).type || "video/mp4",
     })
     .returning();

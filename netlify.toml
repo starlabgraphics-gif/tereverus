@@ -1,0 +1,20 @@
+# Tereverus TV — Netlify deployment
+# NOTE: UI settings in the Netlify dashboard take precedence over this file.
+# REQUIRED: add DATABASE_URL in Site configuration → Environment variables
+# (a PostgreSQL connection string, e.g. from Neon or Supabase).
+# Tables are created automatically on first use — no migration step needed.
+# Uploaded media is stored in Netlify Blobs (R2) automatically.
+
+[build]
+command = "npm run build"
+
+[build.environment]
+NODE_VERSION = "20"
+
+# Both plugins are required for the App Router on Netlify.
+# (If your Netlify UI already lists one of them, the lists merge.)
+[[plugins]]
+package = "@netlify/plugin-nextjs"
+
+[[plugins]]
+package = "@netlify/plugin-edge-handlers"

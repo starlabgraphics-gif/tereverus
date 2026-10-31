@@ -4,15 +4,18 @@ import { db } from "@/db";
 import { playlistEntries } from "@/db/schema";
 import { isAuthedAdmin } from "@/lib/auth";
 import { getPublicState } from "@/lib/broadcast";
+import { ensureSchema } from "@/lib/dbReady";
 
 export const dynamic = "force-dynamic";
 
 export async function GET() {
+  await ensureSchema();
   const state = await getPublicState();
   return NextResponse.json({ entries: state.entries, totalDuration: state.totalDuration });
 }
 
 export async function POST(req: Request) {
+  await ensureSchema();
   if (!(await isAuthedAdmin())) {
     return NextResponse.json({ error: "Unauthorized." }, { status: 401 });
   }
