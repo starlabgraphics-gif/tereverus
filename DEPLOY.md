@@ -13,11 +13,10 @@ automatically on first request.
 
 ## Build plugins (App Router)
 
-Both must be present in **Site configuration → Build plugins** (also
+This plugin must be present in **Site configuration → Build plugins** (also
 declared in `netlify.toml`):
 
 - `@netlify/plugin-nextjs`
-- `@netlify/plugin-edge-handlers`
 
 The earlier "DATABASE_URL is required" build error is fixed: the database
 is initialized lazily, so `next build` succeeds with the variable unset.

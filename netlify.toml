@@ -11,10 +11,6 @@ command = "npm run build"
 [build.environment]
 NODE_VERSION = "20"
 
-# Both plugins are required for the App Router on Netlify.
-# (If your Netlify UI already lists one of them, the lists merge.)
+# The Next.js runtime handles the App Router, middleware and edge functions.
 [[plugins]]
 package = "@netlify/plugin-nextjs"
-
-[[plugins]]
-package = "@netlify/plugin-edge-handlers"
